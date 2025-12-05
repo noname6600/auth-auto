@@ -1,0 +1,88 @@
+# ============================
+# Deployment cho auth-service
+# ============================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+      - name: auth
+        image: your-dockerhub/auth-service:latest
+        ports:
+        - containerPort: 8081
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: prod
+
+---
+# ============================
+# Service cho auth-service
+# ============================
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: default
+spec:
+  selector:
+    app: auth-service
+  ports:
+  - protocol: TCP
+    port: 8081
+    targetPort: 8081
+  type: ClusterIP
+
+---
+# ============================
+# KongPlugin JWKS
+# ============================
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: auth-jwks-plugin
+  namespace: default
+plugin: jwt
+config:
+  uri_param_names:
+    - jwt
+  claims_to_verify:
+    - exp
+    - iss
+  key_claim_name: sub
+  secret_is_base64: false
+  jwks_uri: "https://auth.example.com/.well-known/jwks.json"
+
+---
+# ============================
+# K8s Ingress trỏ đến Kong
+# ============================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: auth-ingress
+  namespace: default
+  annotations:
+    konghq.com/plugins: auth-jwks-plugin
+    konghq.com/strip-path: "false"
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /auth
+        pathType: Prefix
+        backend:
+          service:
+            name: auth-service
+            port:
+              number: 8081

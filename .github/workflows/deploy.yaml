@@ -1,0 +1,49 @@
+name: CI/CD Deploy Microservices
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      KUBECONFIG: ${{ secrets.KUBECONFIG }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Build + Push auth-service
+    - name: Build auth-service Docker image
+      run: docker build -t $DOCKERHUB_USERNAME/auth-service:latest ./auth-service
+
+    - name: Login to DockerHub
+      run: echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin
+
+    - name: Push auth-service image
+      run: docker push $DOCKERHUB_USERNAME/auth-service:latest
+
+    # Build + Push order-service
+    - name: Build order-service Docker image
+      run: docker build -t $DOCKERHUB_USERNAME/order-service:latest ./order-service
+
+    - name: Push order-service image
+      run: docker push $DOCKERHUB_USERNAME/order-service:latest
+
+    # Deploy to K3s
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: v1.33.6
+
+    - name: Configure Kubeconfig
+      run: echo "$KUBECONFIG" | base64 --decode > $HOME/.kube/config
+
+    - name: Deploy auth-service + Kong
+      run: kubectl apply -f ./k8s/auth-kong.yaml
+
+    - name: Deploy order-service + Kong
+      run: kubectl apply -f ./k8s/order-kong.yaml

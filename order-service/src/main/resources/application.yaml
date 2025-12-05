@@ -1,0 +1,27 @@
+server:
+  port: ${PORT:8083}
+
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: ${MASTER_DATABASE_URL:jdbc:mysql://localhost:3306/inittest}
+    username: ${MASTER_DATABASE_USER:root}
+    password: ${MASTER_DATABASE_PWD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
