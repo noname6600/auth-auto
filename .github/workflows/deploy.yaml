@@ -17,9 +17,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Debug Username
-      run: echo "USERNAME: $DOCKERHUB_USERNAME"
-
     # Build + Push auth-service
     - name: Build auth-service Docker image
       run: docker build -t $DOCKERHUB_USERNAME/auth-service:latest ./auth-service
