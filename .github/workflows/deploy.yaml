@@ -74,3 +74,8 @@ jobs:
     # Deploy order-service
     - name: Deploy order-service
       run: kubectl apply -f ./k8s/order.yaml
+
+    # Deploy order-service
+    - name: Deploy ingress
+      run: kubectl apply -f k8s/ingress.yaml
+
