@@ -7,29 +7,21 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: envoy-gateway
+      app: envoy
   template:
     metadata:
       labels:
-        app: envoy-gateway
+        app: envoy
     spec:
       containers:
         - name: envoy
-          image: envoyproxy/envoy:v1.25-latest
-          args:
-            - /usr/local/bin/envoy
-            - -c
-            - /etc/envoy/envoy-config.yaml
-            - --service-node
-            - envoy-gateway
-            - --service-cluster
-            - envoy-gateway
+          image: docker.io/yourdockerhub/envoy:latest
           ports:
             - containerPort: 80
-            - containerPort: 9901
           volumeMounts:
             - name: envoy-config
-              mountPath: /etc/envoy
+              mountPath: /etc/envoy/envoy.yaml
+              subPath: envoy-config.yaml
       volumes:
         - name: envoy-config
           configMap:
