@@ -1,0 +1,17 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: kong-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 160.30.113.34   
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: kong-lb-advert
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - kong-pool

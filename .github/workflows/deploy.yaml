@@ -75,7 +75,11 @@ jobs:
     - name: Deploy order-service
       run: kubectl apply -f ./k8s/order.yaml
 
-    # Deploy order-service
+    # Deploy ingress
     - name: Deploy ingress
       run: kubectl apply -f k8s/main-ingress.yaml
+
+    # Deploy metallb
+    - name: Deploy metallb
+      run: kubectl apply -f k8s/metallb-pool.yaml
 
