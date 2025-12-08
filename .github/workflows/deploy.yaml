@@ -12,6 +12,7 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       KUBECONFIG: ${{ secrets.KUBECONFIG }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -33,7 +34,7 @@ jobs:
     - name: Push order-service image
       run: docker push $DOCKERHUB_USERNAME/order-service:latest
 
-    # Deploy to K3s
+    # Setup kubectl
     - name: Setup kubectl
       uses: azure/setup-kubectl@v3
       with:
@@ -42,8 +43,14 @@ jobs:
     - name: Configure Kubeconfig
       run: echo "$KUBECONFIG" | base64 --decode > $HOME/.kube/config
 
-    - name: Deploy auth-service + Kong
-      run: kubectl apply -f ./k8s/auth-kong.yaml
+    # Deploy MySQL
+    - name: Deploy MySQL
+      run: kubectl apply -f ./k8s/mysql.yaml
 
-    - name: Deploy order-service + Kong
-      run: kubectl apply -f ./k8s/order-kong.yaml
+    # Deploy auth-service
+    - name: Deploy auth-service
+      run: kubectl apply -f ./k8s/auth.yaml
+
+    # Deploy order-service
+    - name: Deploy order-service
+      run: kubectl apply -f ./k8s/order.yaml
