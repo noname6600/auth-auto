@@ -94,3 +94,16 @@ jobs:
 
     - name: Deploy metallb
       run: kubectl apply -f ./k8s/metallb-pool.yaml
+
+    # Deploy envoy gateway
+    - name: Deploy Envoy ConfigMap
+      run: kubectl create configmap envoy-config --from-file=k8s/envoy-gateway/envoy-config.yaml -o yaml --dry-run=client | kubectl apply -f -
+
+    - name: Deploy Envoy Deployment
+      run: kubectl apply -f k8s/envoy-gateway/deployment.yaml
+
+    - name: Deploy Envoy Service
+      run: kubectl apply -f k8s/envoy-gateway/service.yaml
+
+    - name: Deploy Envoy Ingress
+      run: kubectl apply -f k8s/envoy-gateway/ingress.yaml

@@ -1,0 +1,19 @@
+apiVersion networking.k8s.iov1
+kind Ingress
+metadata
+  name envoy-gateway-ingress
+  namespace default
+  annotations
+    kubernetes.ioingress.class kong   # hoặc ingress controller bạn dùng
+spec
+  rules
+    - host gateway.nani.id.vn
+      http
+        paths
+          - path 
+            pathType Prefix
+            backend
+              service
+                name envoy-gateway
+                port
+                  number 80
