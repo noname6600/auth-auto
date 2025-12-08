@@ -25,19 +25,16 @@ jobs:
 
     - name: Build auth-service Docker image
       run: docker build -t $DOCKERHUB_USERNAME/auth-service:latest ./auth-service
-
     - name: Push auth-service image
       run: docker push $DOCKERHUB_USERNAME/auth-service:latest
 
     - name: Build order-service Docker image
       run: docker build -t $DOCKERHUB_USERNAME/order-service:latest ./order-service
-
     - name: Push order-service image
       run: docker push $DOCKERHUB_USERNAME/order-service:latest
 
     - name: Build frontend Docker image
       run: docker build -t $DOCKERHUB_USERNAME/frontend:latest ./frontend
-
     - name: Push frontend image
       run: docker push $DOCKERHUB_USERNAME/frontend:latest
 
@@ -50,11 +47,9 @@ jobs:
         version: v1.33.6
 
     - name: Configure Kubeconfig
-      env:
-        KUBECONFIG_BASE64: ${{ secrets.KUBECONFIG_BASE64 }}
       run: |
         mkdir -p $HOME/.kube
-        echo "$KUBECONFIG_BASE64" | base64 --decode > $HOME/.kube/config
+        echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 --decode > $HOME/.kube/config
         chmod 600 $HOME/.kube/config
 
     - name: Test kubectl connectivity
@@ -63,7 +58,7 @@ jobs:
         kubectl get nodes || true
 
     # -------------------------------
-    # Deploy resources
+    # Deploy services
     # -------------------------------
     - name: Deploy MySQL
       run: kubectl apply -f ./k8s/mysql.yaml
@@ -83,19 +78,9 @@ jobs:
     - name: Deploy Frontend Ingress
       run: kubectl apply -f ./k8s/frontend-ingress.yaml
 
-    - name: Deploy Kong JWT Plugin
-      run: kubectl apply -f ./k8s/kong-jwt-plugin.yaml
-
-    - name: Deploy Kong Auth Route + Service
-      run: kubectl apply -f ./k8s/kong-auth.yaml
-
-    - name: Deploy Kong Order Route + Service
-      run: kubectl apply -f ./k8s/kong-order.yaml
-
-    - name: Deploy metallb
-      run: kubectl apply -f ./k8s/metallb-pool.yaml
-
-    # Deploy envoy gateway
+    # -------------------------------
+    # Deploy Envoy Gateway
+    # -------------------------------
     - name: Deploy Envoy ConfigMap
       run: kubectl create configmap envoy-config --from-file=k8s/envoy-gateway/envoy-config.yaml -o yaml --dry-run=client | kubectl apply -f -
 
