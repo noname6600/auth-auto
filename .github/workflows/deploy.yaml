@@ -20,7 +20,9 @@ jobs:
     - name: Docker login
       run: echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin
 
+    # -------------------------------
     # Build & push services
+    # -------------------------------
     - name: Build auth-service
       run: docker build -t $DOCKERHUB_USERNAME/auth-service:latest ./auth-service
     - name: Push auth-service
@@ -36,12 +38,9 @@ jobs:
     - name: Push frontend
       run: docker push $DOCKERHUB_USERNAME/frontend:latest
 
-    - name: Build envoy
-      run: docker build -t $DOCKERHUB_USERNAME/envoy:latest ./k8s/envoy-gateway
-    - name: Push envoy
-      run: docker push $DOCKERHUB_USERNAME/envoy:latest
-
+    # -------------------------------
     # Setup kubectl
+    # -------------------------------
     - name: Setup kubectl
       uses: azure/setup-kubectl@v3
       with:
@@ -53,24 +52,44 @@ jobs:
         echo "$KUBECONFIG_BASE64" | base64 --decode > $HOME/.kube/config
         chmod 600 $HOME/.kube/config
 
+    - name: Test kubectl connectivity
+      run: |
+        kubectl version --client=true
+        kubectl get nodes || true
+
+    # -------------------------------
+    # Deploy MySQL (nếu có)
+    # -------------------------------
+    - name: Deploy MySQL
+      run: kubectl apply -f k8s/mysql.yaml
+
+    # -------------------------------
     # Deploy services
-    - name: Deploy auth
+    # -------------------------------
+    - name: Deploy auth-service
       run: kubectl apply -f k8s/auth.yaml
-    - name: Deploy order
+    - name: Deploy order-service
       run: kubectl apply -f k8s/order.yaml
     - name: Deploy frontend
       run: kubectl apply -f k8s/frontend.yaml
 
-    # Deploy envoy
+    # -------------------------------
+    # Deploy Envoy (không build image)
+    # -------------------------------
     - name: Deploy Envoy ConfigMap
       run: kubectl create configmap envoy-config --from-file=k8s/envoy-gateway/envoy-config.yaml -o yaml --dry-run=client | kubectl apply -f -
+
     - name: Deploy Envoy Deployment
       run: kubectl apply -f k8s/envoy-gateway/deployment.yaml
+
     - name: Deploy Envoy Service
       run: kubectl apply -f k8s/envoy-gateway/service.yaml
 
+    # -------------------------------
     # Deploy Ingress
+    # -------------------------------
     - name: Deploy API Ingress
       run: kubectl apply -f k8s/api-ingress.yaml
+
     - name: Deploy Frontend Ingress
       run: kubectl apply -f k8s/frontend-ingress.yaml

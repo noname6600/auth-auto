@@ -15,7 +15,13 @@ spec:
     spec:
       containers:
         - name: envoy
-          image: docker.io/yourdockerhub/envoy:latest
+          image: envoyproxy/envoy:v1.30-latest
+          args:
+            - /usr/local/bin/envoy
+            - "-c"
+            - "/etc/envoy/envoy.yaml"
+            - "--log-level"
+            - "info"
           ports:
             - containerPort: 80
           volumeMounts:
