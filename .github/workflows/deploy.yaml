@@ -17,24 +17,33 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Build + Push auth-service
-    - name: Build auth-service Docker image
-      run: docker build -t $DOCKERHUB_USERNAME/auth-service:latest ./auth-service
-
+    # -------------------------------
+    # Build + Push Docker images
+    # -------------------------------
     - name: Login to DockerHub
       run: echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin
+
+    - name: Build auth-service Docker image
+      run: docker build -t $DOCKERHUB_USERNAME/auth-service:latest ./auth-service
 
     - name: Push auth-service image
       run: docker push $DOCKERHUB_USERNAME/auth-service:latest
 
-    # Build + Push order-service
     - name: Build order-service Docker image
       run: docker build -t $DOCKERHUB_USERNAME/order-service:latest ./order-service
 
     - name: Push order-service image
       run: docker push $DOCKERHUB_USERNAME/order-service:latest
 
+    - name: Build frontend Docker image
+      run: docker build -t $DOCKERHUB_USERNAME/frontend:latest ./frontend
+
+    - name: Push frontend image
+      run: docker push $DOCKERHUB_USERNAME/frontend:latest
+
+    # -------------------------------
     # Setup kubectl
+    # -------------------------------
     - name: Setup kubectl
       uses: azure/setup-kubectl@v3
       with:
@@ -48,38 +57,31 @@ jobs:
         echo "$KUBECONFIG_BASE64" | base64 --decode > $HOME/.kube/config
         chmod 600 $HOME/.kube/config
 
-    - name: Debug kubeconfig
-      run: |
-        echo "===== file size (bytes) ====="
-        wc -c $HOME/.kube/config || true
-        echo "===== first 20 lines ====="
-        head -n 20 $HOME/.kube/config || true
-        echo "===== check first token (should be apiVersion) ====="
-        awk 'NR==1{print; exit}' $HOME/.kube/config || true
-
     - name: Test kubectl connectivity
       run: |
         kubectl version --client=true
-        kubectl config view --minify
         kubectl get nodes || true
 
-    # Deploy MySQL
+    # -------------------------------
+    # Deploy resources
+    # -------------------------------
     - name: Deploy MySQL
       run: kubectl apply -f ./k8s/mysql.yaml
 
-    # Deploy auth-service
     - name: Deploy auth-service
       run: kubectl apply -f ./k8s/auth.yaml
 
-    # Deploy order-service
     - name: Deploy order-service
       run: kubectl apply -f ./k8s/order.yaml
 
-    # Deploy ingress
-    - name: Deploy ingress
-      run: kubectl apply -f k8s/main-ingress.yaml
+    - name: Deploy frontend
+      run: kubectl apply -f ./k8s/frontend.yaml
 
-    # Deploy metallb
+    - name: Deploy API Ingress
+      run: kubectl apply -f ./k8s/main-ingress.yaml
+
+    - name: Deploy Frontend Ingress
+      run: kubectl apply -f ./k8s/frontend-ingress.yaml
+
     - name: Deploy metallb
-      run: kubectl apply -f k8s/metallb-pool.yaml
-
+      run: kubectl apply -f ./k8s/metallb-pool.yaml
