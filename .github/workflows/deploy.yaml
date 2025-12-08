@@ -41,7 +41,10 @@ jobs:
         version: v1.33.6
 
     - name: Configure Kubeconfig
-      run: echo "$KUBECONFIG" | base64 --decode > $HOME/.kube/config
+      run: |
+        mkdir -p $HOME/.kube
+        echo "$KUBECONFIG" | base64 --decode > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
 
     # Deploy MySQL
     - name: Deploy MySQL
