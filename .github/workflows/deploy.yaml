@@ -41,10 +41,27 @@ jobs:
         version: v1.33.6
 
     - name: Configure Kubeconfig
+      env:
+        KUBECONFIG_BASE64: ${{ secrets.KUBECONFIG_BASE64 }}
       run: |
         mkdir -p $HOME/.kube
-        echo "$KUBECONFIG" | base64 --decode > $HOME/.kube/config
+        echo "$KUBECONFIG_BASE64" | base64 --decode > $HOME/.kube/config
         chmod 600 $HOME/.kube/config
+
+    - name: Debug kubeconfig
+      run: |
+        echo "===== file size (bytes) ====="
+        wc -c $HOME/.kube/config || true
+        echo "===== first 20 lines ====="
+        head -n 20 $HOME/.kube/config || true
+        echo "===== check first token (should be apiVersion) ====="
+        awk 'NR==1{print; exit}' $HOME/.kube/config || true
+
+    - name: Test kubectl connectivity
+      run: |
+        kubectl version --client=true
+        kubectl config view --minify
+        kubectl get nodes || true
 
     # Deploy MySQL
     - name: Deploy MySQL
