@@ -1,0 +1,23 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongService
+metadata:
+  name: auth-service
+  namespace: default
+spec:
+  url: http://auth-service.default.svc.cluster.local:8081
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongRoute
+metadata:
+  name: auth-route
+  namespace: default
+  annotations:
+    konghq.com/plugins: jwt-verify-plugin
+spec:
+  paths:
+    - /api/v1/auth
+    - /api/v1/users
+    - /api/v1/accounts
+  strip_path: false
+  service:
+    name: auth-service

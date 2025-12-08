@@ -83,5 +83,14 @@ jobs:
     - name: Deploy Frontend Ingress
       run: kubectl apply -f ./k8s/frontend-ingress.yaml
 
+    - name: Deploy Kong JWT Plugin
+      run: kubectl apply -f ./k8s/kong-jwt-plugin.yaml
+
+    - name: Deploy Kong Auth Route + Service
+      run: kubectl apply -f ./k8s/kong-auth.yaml
+
+    - name: Deploy Kong Order Route + Service
+      run: kubectl apply -f ./k8s/kong-order.yaml
+
     - name: Deploy metallb
       run: kubectl apply -f ./k8s/metallb-pool.yaml
