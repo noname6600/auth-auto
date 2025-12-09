@@ -32,6 +32,10 @@ static_resources:
                           route: { cluster: order_service }
 
                 http_filters:
+
+                  # -----------------------------
+                  # JWT verification filter
+                  # -----------------------------
                   - name: envoy.filters.http.jwt_authn
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
@@ -39,6 +43,7 @@ static_resources:
                       providers:
                         auth_provider:
                           issuer: "http://auth-service.default.svc.cluster.local"
+                          payload_in_metadata: "jwt_payload"
                           remote_jwks:
                             http_uri:
                               uri: "http://auth-service.default.svc.cluster.local/.well-known/jwks.json"
@@ -47,12 +52,12 @@ static_resources:
                             cache_duration: { seconds: 600 }
 
                       rules:
-                        # PUBLIC → no JWT required
+                        # PUBLIC → No JWT required
                         - match: { prefix: "/api/v1/auth/" }
                           requires:
                             allow_missing: {}
 
-                        # PROTECTED → must have JWT
+                        # PROTECTED → Require JWT
                         - match: { prefix: "/api/v1/users/" }
                           requires:
                             provider_name: "auth_provider"
@@ -65,10 +70,38 @@ static_resources:
                           requires:
                             provider_name: "auth_provider"
 
+
+                  # --------------------------------------
+                  # Lua filter: Extract JWT payload to header
+                  # --------------------------------------
+                  - name: envoy.filters.http.lua
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+                      inline_code: |
+                        function envoy_on_request(handle)
+                          local jwt = handle:metadata():get("jwt_payload")
+                          if jwt ~= nil then
+                            local uid = jwt["uid"]
+                            local sub = jwt["sub"]
+
+                            if uid ~= nil then
+                              handle:headers():add("X-USER-ID", tostring(uid))
+                            end
+
+                            if sub ~= nil then
+                              handle:headers():add("X-USER-EMAIL", tostring(sub))
+                            end
+                          end
+                        end
+
+                  # Router filter
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
+  # -------------------------
+  # Backend Service Clusters
+  # -------------------------
   clusters:
     - name: auth_service
       connect_timeout: 0.25s
