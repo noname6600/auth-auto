@@ -42,7 +42,10 @@ static_resources:
                           requires: { provider_name: "auth_provider" }
                         - match: { prefix: "/orders" }
                           requires: { provider_name: "auth_provider" }
+
                   - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
   clusters:
     - name: auth_service
