@@ -2,7 +2,7 @@ static_resources:
   listeners:
     - name: listener_0
       address:
-        socket_address: 
+        socket_address:
           address: 0.0.0.0
           port_value: 80
       filter_chains:
@@ -28,11 +28,11 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
                       providers:
                         auth_provider:
-                          issuer: "http://api.jwtauth.nani.id.vn"
+                          issuer: "http://auth-service.default.svc.cluster.local:8081"
                           remote_jwks:
                             http_uri:
-                              uri: "http://api.jwtauth.nani.id.vn/.well-known/jwks.json"
-                              cluster: jwks_cluster
+                              uri: "http://auth-service.default.svc.cluster.local:8081/.well-known/jwks.json"
+                              cluster: auth_service
                               timeout:
                                 seconds: 5
                             cache_duration:
@@ -72,20 +72,6 @@ static_resources:
                     socket_address:
                       address: order-service.default.svc.cluster.local
                       port_value: 8082
-
-    - name: jwks_cluster
-      connect_timeout: 0.25s
-      type: STRICT_DNS
-      lb_policy: ROUND_ROBIN
-      load_assignment:
-        cluster_name: jwks_cluster
-        endpoints:
-          - lb_endpoints:
-              - endpoint:
-                  address:
-                    socket_address:
-                      address: api.jwtauth.nani.id.vn
-                      port_value: 80
 
 admin:
   access_log_path: "/tmp/admin_access.log"
