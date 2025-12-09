@@ -12,6 +12,7 @@ static_resources:
                 "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                 stat_prefix: ingress_http
                 codec_type: AUTO
+
                 route_config:
                   name: local_route
                   virtual_hosts:
@@ -46,12 +47,12 @@ static_resources:
                             cache_duration: { seconds: 600 }
 
                       rules:
-                        # PUBLIC ENDPOINT → NO JWT
+                        # PUBLIC → no JWT required
                         - match: { prefix: "/api/v1/auth/" }
                           requires:
                             allow_missing: {}
 
-                        # PROTECTED ENDPOINTS → REQUIRE JWT
+                        # PROTECTED → must have JWT
                         - match: { prefix: "/api/v1/users/" }
                           requires:
                             provider_name: "auth_provider"
@@ -65,6 +66,8 @@ static_resources:
                             provider_name: "auth_provider"
 
                   - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
   clusters:
     - name: auth_service
