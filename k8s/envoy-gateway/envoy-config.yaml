@@ -20,16 +20,21 @@ static_resources:
                       routes:
                         - match: { prefix: "/api/v1/auth/" }
                           route: { cluster: auth_service }
+
                         - match: { prefix: "/api/v1/users/" }
                           route: { cluster: auth_service }
+
                         - match: { prefix: "/api/v1/accounts/" }
                           route: { cluster: auth_service }
+
                         - match: { prefix: "/api/v1/orders/" }
                           route: { cluster: order_service }
+
                 http_filters:
                   - name: envoy.filters.http.jwt_authn
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+
                       providers:
                         auth_provider:
                           issuer: "http://auth-service.default.svc.cluster.local"
@@ -37,22 +42,28 @@ static_resources:
                             http_uri:
                               uri: "http://auth-service.default.svc.cluster.local/.well-known/jwks.json"
                               cluster: jwks_cluster
-                              timeout:
-                                seconds: 5
-                            cache_duration:
-                              seconds: 600
-                      rules:
-                        # Public endpoints
-                        - match: { prefix: "/api/v1/auth/" }
-                          requires: { provider_name: "auth_provider", allow_missing: true }
+                              timeout: { seconds: 5 }
+                            cache_duration: { seconds: 600 }
 
-                        # Protected endpoints (JWT required)
+                      rules:
+                        # PUBLIC ENDPOINT → NO JWT
+                        - match: { prefix: "/api/v1/auth/" }
+                          requires:
+                            allow_missing: {}
+
+                        # PROTECTED ENDPOINTS → REQUIRE JWT
                         - match: { prefix: "/api/v1/users/" }
-                          requires: { provider_name: "auth_provider" }
+                          requires:
+                            provider_name: "auth_provider"
+
                         - match: { prefix: "/api/v1/accounts/" }
-                          requires: { provider_name: "auth_provider" }
+                          requires:
+                            provider_name: "auth_provider"
+
                         - match: { prefix: "/api/v1/orders/" }
-                          requires: { provider_name: "auth_provider" }
+                          requires:
+                            provider_name: "auth_provider"
+
                   - name: envoy.filters.http.router
 
   clusters:
