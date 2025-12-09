@@ -39,14 +39,13 @@ static_resources:
                   - name: envoy.filters.http.jwt_authn
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
-
                       providers:
                         auth_provider:
                           issuer: "http://auth-service.default.svc.cluster.local"
                           payload_in_metadata: "jwt_payload"
                           remote_jwks:
                             http_uri:
-                              uri: "http://auth-service.default.svc.cluster.local/.well-known/jwks.json"
+                              uri: "http://auth-service.default.svc.cluster.local:8081/.well-known/jwks.json"
                               cluster: jwks_cluster
                               timeout: { seconds: 5 }
                             cache_duration: { seconds: 600 }
@@ -70,10 +69,9 @@ static_resources:
                           requires:
                             provider_name: "auth_provider"
 
-
-                  # --------------------------------------
-                  # Lua filter: Extract JWT payload to header
-                  # --------------------------------------
+                  # -----------------------------
+                  # Lua filter: Extract JWT payload to header + log
+                  # -----------------------------
                   - name: envoy.filters.http.lua
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
@@ -81,16 +79,25 @@ static_resources:
                         function envoy_on_request(handle)
                           local jwt = handle:metadata():get("jwt_payload")
                           if jwt ~= nil then
+                            handle:logInfo("[JWT] Payload found")
                             local uid = jwt["uid"]
                             local sub = jwt["sub"]
 
                             if uid ~= nil then
                               handle:headers():add("X-USER-ID", tostring(uid))
+                              handle:logInfo("[JWT] Added header X-USER-ID = " .. tostring(uid))
+                            else
+                              handle:logWarn("[JWT] uid is nil")
                             end
 
                             if sub ~= nil then
                               handle:headers():add("X-USER-EMAIL", tostring(sub))
+                              handle:logInfo("[JWT] Added header X-USER-EMAIL = " .. tostring(sub))
+                            else
+                              handle:logWarn("[JWT] sub is nil")
                             end
+                          else
+                            handle:logWarn("[JWT] No jwt_payload found!")
                           end
                         end
 
@@ -99,9 +106,6 @@ static_resources:
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
-  # -------------------------
-  # Backend Service Clusters
-  # -------------------------
   clusters:
     - name: auth_service
       connect_timeout: 0.25s
