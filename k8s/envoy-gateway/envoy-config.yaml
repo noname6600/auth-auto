@@ -18,9 +18,13 @@ static_resources:
                     - name: backend
                       domains: ["*"]
                       routes:
-                        - match: { prefix: "/api" }
+                        - match: { prefix: "/api/v1/auth/" }
                           route: { cluster: auth_service }
-                        - match: { prefix: "/orders" }
+                        - match: { prefix: "/api/v1/users/" }
+                          route: { cluster: auth_service }
+                        - match: { prefix: "/api/v1/accounts/" }
+                          route: { cluster: auth_service }
+                        - match: { prefix: "/api/v1/orders/" }
                           route: { cluster: order_service }
                 http_filters:
                   - name: envoy.filters.http.jwt_authn
@@ -28,24 +32,28 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
                       providers:
                         auth_provider:
-                          issuer: "http://auth-service.default.svc.cluster.local:8081"
+                          issuer: "http://auth-service.default.svc.cluster.local"
                           remote_jwks:
                             http_uri:
-                              uri: "http://auth-service.default.svc.cluster.local:8081/.well-known/jwks.json"
-                              cluster: auth_service
+                              uri: "http://auth-service.default.svc.cluster.local/.well-known/jwks.json"
+                              cluster: jwks_cluster
                               timeout:
                                 seconds: 5
                             cache_duration:
                               seconds: 600
                       rules:
-                        - match: { prefix: "/api" }
-                          requires: { provider_name: "auth_provider" }
-                        - match: { prefix: "/orders" }
-                          requires: { provider_name: "auth_provider" }
+                        # Public endpoints
+                        - match: { prefix: "/api/v1/auth/" }
+                          requires: { provider_name: "auth_provider", allow_missing: true }
 
+                        # Protected endpoints (JWT required)
+                        - match: { prefix: "/api/v1/users/" }
+                          requires: { provider_name: "auth_provider" }
+                        - match: { prefix: "/api/v1/accounts/" }
+                          requires: { provider_name: "auth_provider" }
+                        - match: { prefix: "/api/v1/orders/" }
+                          requires: { provider_name: "auth_provider" }
                   - name: envoy.filters.http.router
-                    typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
   clusters:
     - name: auth_service
@@ -75,6 +83,20 @@ static_resources:
                     socket_address:
                       address: order-service.default.svc.cluster.local
                       port_value: 8082
+
+    - name: jwks_cluster
+      connect_timeout: 0.25s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: jwks_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: auth-service.default.svc.cluster.local
+                      port_value: 8081
 
 admin:
   access_log_path: "/tmp/admin_access.log"
