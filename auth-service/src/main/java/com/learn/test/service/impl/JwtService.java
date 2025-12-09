@@ -26,6 +26,7 @@ public class JwtService implements IJwtService {
         Instant exp = now.plusMillis(keyManager.getJwtExpirationMs());
 
         return Jwts.builder()
+                .setIssuer("http://auth-service.default.svc.cluster.local")
                 .setSubject(user.getAccount().getEmail())
                 .claim("uid", user.getId().toString())
                 .setIssuedAt(Date.from(now))
