@@ -1,182 +1,153 @@
-static_resources:
-  listeners:
-    - name: listener_0
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: envoy-config
+  namespace: default
+data:
+  envoy-config.yaml: |
+    static_resources:
+      listeners:
+        - name: listener_0
+          address:
+            socket_address:
+              address: 0.0.0.0
+              port_value: 8080
+          filter_chains:
+            - filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: ingress_http
+                    codec_type: AUTO
+
+                    route_config:
+                      name: local_route
+                      virtual_hosts:
+                        - name: backend
+                          domains: ["*"]
+                          routes:
+                            - match: { prefix: "/api/v1/auth/" }
+                              route: { cluster: auth_service }
+                            - match: { prefix: "/api/v1/users/" }
+                              route: { cluster: auth_service }
+                            - match: { prefix: "/api/v1/accounts/" }
+                              route: { cluster: auth_service }
+                            - match: { prefix: "/api/v1/orders/" }
+                              route: { cluster: order_service }
+
+                    http_filters:
+                      # JWT verification
+                      - name: envoy.filters.http.jwt_authn
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+                          providers:
+                            auth_provider:
+                              issuer: "http://auth-service.default.svc.cluster.local:8081"
+                              payload_in_metadata: "jwt_payload"
+                              remote_jwks:
+                                http_uri:
+                                  uri: "http://auth-service.default.svc.cluster.local:8081/.well-known/jwks.json"
+                                  cluster: jwks_cluster
+                                  timeout: { seconds: 10 }
+                                cache_duration: { seconds: 600 }
+                          rules:
+                            - match: { prefix: "/api/v1/auth/" }
+                              requires:
+                                allow_missing: {}
+                            - match: { prefix: "/api/v1/users/" }
+                              requires:
+                                provider_name: "auth_provider"
+                            - match: { prefix: "/api/v1/accounts/" }
+                              requires:
+                                provider_name: "auth_provider"
+                            - match: { prefix: "/api/v1/orders/" }
+                              requires:
+                                provider_name: "auth_provider"
+
+                      # Lua debug filter
+                      - name: envoy.filters.http.lua
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+                          inline_code: |
+                            function table_to_string(t)
+                              local s = "{"
+                              for k,v in pairs(t) do
+                                s = s .. tostring(k) .. "=" .. tostring(v) .. ", "
+                              end
+                              return s .. "}"
+                            end
+
+                            function envoy_on_request(handle)
+                              local auth_header = handle:headers():get("Authorization")
+                              if auth_header ~= nil then
+                                handle:logInfo("[JWT DEBUG] Authorization header: " .. auth_header)
+                              else
+                                handle:logWarn("[JWT DEBUG] No Authorization header found!")
+                              end
+
+                              local jwt = handle:metadata():get("jwt_payload")
+                              if jwt ~= nil then
+                                handle:logInfo("[JWT DEBUG] jwt_payload found! Payload: " .. table_to_string(jwt))
+                                local uid = jwt["uid"]
+                                local sub = jwt["sub"]
+                                if uid then handle:headers():add("X-USER-ID", tostring(uid)) end
+                                if sub then handle:headers():add("X-USER-EMAIL", tostring(sub)) end
+                              else
+                                handle:logWarn("[JWT DEBUG] No jwt_payload found! JWT verification probably failed.")
+                              end
+                            end
+
+                      # Router filter
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+      clusters:
+        - name: auth_service
+          connect_timeout: 0.25s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          load_assignment:
+            cluster_name: auth_service
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: auth-service.default.svc.cluster.local
+                          port_value: 8081
+
+        - name: order_service
+          connect_timeout: 0.25s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          load_assignment:
+            cluster_name: order_service
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: order-service.default.svc.cluster.local
+                          port_value: 8082
+
+        - name: jwks_cluster
+          connect_timeout: 0.25s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          load_assignment:
+            cluster_name: jwks_cluster
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: auth-service.default.svc.cluster.local
+                          port_value: 8081
+
+    admin:
+      access_log_path: "/tmp/admin_access.log"
       address:
         socket_address:
           address: 0.0.0.0
-          port_value: 80
-      filter_chains:
-        - filters:
-            - name: envoy.filters.network.http_connection_manager
-              typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-                stat_prefix: ingress_http
-                codec_type: AUTO
-
-                route_config:
-                  name: local_route
-                  virtual_hosts:
-                    - name: backend
-                      domains: ["*"]
-                      routes:
-                        - match: { prefix: "/api/v1/auth/" }
-                          route: { cluster: auth_service }
-
-                        - match: { prefix: "/api/v1/users/" }
-                          route: { cluster: auth_service }
-
-                        - match: { prefix: "/api/v1/accounts/" }
-                          route: { cluster: auth_service }
-
-                        - match: { prefix: "/api/v1/orders/" }
-                          route: { cluster: order_service }
-
-                http_filters:
-
-                  # -----------------------------
-                  # JWT verification filter
-                  # -----------------------------
-                  - name: envoy.filters.http.jwt_authn
-                    typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
-                      providers:
-                        auth_provider:
-                          issuer: "http://auth-service.default.svc.cluster.local"
-                          payload_in_metadata: "jwt_payload"
-                          remote_jwks:
-                            http_uri:
-                              uri: "http://auth-service.default.svc.cluster.local:8081/.well-known/jwks.json"
-                              cluster: jwks_cluster
-                              timeout: { seconds: 5 }
-                            cache_duration: { seconds: 600 }
-
-                      rules:
-                        # PUBLIC → No JWT required
-                        - match: { prefix: "/api/v1/auth/" }
-                          requires:
-                            allow_missing: {}
-
-                        # PROTECTED → Require JWT
-                        - match: { prefix: "/api/v1/users/" }
-                          requires:
-                            provider_name: "auth_provider"
-
-                        - match: { prefix: "/api/v1/accounts/" }
-                          requires:
-                            provider_name: "auth_provider"
-
-                        - match: { prefix: "/api/v1/orders/" }
-                          requires:
-                            provider_name: "auth_provider"
-
-                  # -----------------------------
-                  # Lua filter: Extract JWT payload + debug
-                  # -----------------------------
-                  - name: envoy.filters.http.lua
-                    typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-                      inline_code: |
-                        function table_to_string(t)
-                          local s = "{"
-                          for k,v in pairs(t) do
-                            s = s .. tostring(k) .. "=" .. tostring(v) .. ", "
-                          end
-                          return s .. "}"
-                        end
-
-                        function envoy_on_request(handle)
-                          -- Log Authorization header
-                          local auth_header = handle:headers():get("Authorization")
-                          if auth_header ~= nil then
-                            handle:logInfo("[JWT DEBUG] Authorization header: " .. auth_header)
-                          else
-                            handle:logWarn("[JWT DEBUG] No Authorization header found!")
-                          end
-
-                          -- Lấy metadata jwt_payload
-                          local jwt = handle:metadata():get("jwt_payload")
-                          if jwt ~= nil then
-                            handle:logInfo("[JWT DEBUG] jwt_payload found!")
-                            handle:logInfo("[JWT DEBUG] Payload fields: " .. table_to_string(jwt))
-
-                            local uid = jwt["uid"]
-                            local sub = jwt["sub"]
-
-                            if uid ~= nil then
-                              handle:headers():add("X-USER-ID", tostring(uid))
-                              handle:logInfo("[JWT DEBUG] Added header X-USER-ID = " .. tostring(uid))
-                            else
-                              handle:logWarn("[JWT DEBUG] uid is nil in jwt_payload")
-                            end
-
-                            if sub ~= nil then
-                              handle:headers():add("X-USER-EMAIL", tostring(sub))
-                              handle:logInfo("[JWT DEBUG] Added header X-USER-EMAIL = " .. tostring(sub))
-                            else
-                              handle:logWarn("[JWT DEBUG] sub is nil in jwt_payload")
-                            end
-                          else
-                            handle:logWarn("[JWT DEBUG] No jwt_payload found! JWT verification probably failed.")
-                            handle:logWarn("[JWT DEBUG] Possible reasons:")
-                            handle:logWarn("[JWT DEBUG] 1. Token expired")
-                            handle:logWarn("[JWT DEBUG] 2. Issuer mismatch (iss)")
-                            handle:logWarn("[JWT DEBUG] 3. Signature mismatch (public key/JWKS)")
-                            handle:logWarn("[JWT DEBUG] 4. JWKS endpoint unreachable")
-                            handle:logWarn("[JWT DEBUG] 5. Token format invalid")
-                          end
-                        end
-
-                  # Router filter
-                  - name: envoy.filters.http.router
-                    typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
-
-  clusters:
-    - name: auth_service
-      connect_timeout: 0.25s
-      type: STRICT_DNS
-      lb_policy: ROUND_ROBIN
-      load_assignment:
-        cluster_name: auth_service
-        endpoints:
-          - lb_endpoints:
-              - endpoint:
-                  address:
-                    socket_address:
-                      address: auth-service.default.svc.cluster.local
-                      port_value: 8081
-
-    - name: order_service
-      connect_timeout: 0.25s
-      type: STRICT_DNS
-      lb_policy: ROUND_ROBIN
-      load_assignment:
-        cluster_name: order_service
-        endpoints:
-          - lb_endpoints:
-              - endpoint:
-                  address:
-                    socket_address:
-                      address: order-service.default.svc.cluster.local
-                      port_value: 8082
-
-    - name: jwks_cluster
-      connect_timeout: 0.25s
-      type: STRICT_DNS
-      lb_policy: ROUND_ROBIN
-      load_assignment:
-        cluster_name: jwks_cluster
-        endpoints:
-          - lb_endpoints:
-              - endpoint:
-                  address:
-                    socket_address:
-                      address: auth-service.default.svc.cluster.local
-                      port_value: 8081
-
-admin:
-  access_log_path: "/tmp/admin_access.log"
-  address:
-    socket_address:
-      address: 0.0.0.0
-      port_value: 9901
+          port_value: 9901
