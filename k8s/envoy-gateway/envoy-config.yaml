@@ -70,34 +70,59 @@ static_resources:
                             provider_name: "auth_provider"
 
                   # -----------------------------
-                  # Lua filter: Extract JWT payload to header + log
+                  # Lua filter: Extract JWT payload + debug
                   # -----------------------------
                   - name: envoy.filters.http.lua
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
                       inline_code: |
+                        function table_to_string(t)
+                          local s = "{"
+                          for k,v in pairs(t) do
+                            s = s .. tostring(k) .. "=" .. tostring(v) .. ", "
+                          end
+                          return s .. "}"
+                        end
+
                         function envoy_on_request(handle)
+                          -- Log Authorization header
+                          local auth_header = handle:headers():get("Authorization")
+                          if auth_header ~= nil then
+                            handle:logInfo("[JWT DEBUG] Authorization header: " .. auth_header)
+                          else
+                            handle:logWarn("[JWT DEBUG] No Authorization header found!")
+                          end
+
+                          -- Lấy metadata jwt_payload
                           local jwt = handle:metadata():get("jwt_payload")
                           if jwt ~= nil then
-                            handle:logInfo("[JWT] Payload found")
+                            handle:logInfo("[JWT DEBUG] jwt_payload found!")
+                            handle:logInfo("[JWT DEBUG] Payload fields: " .. table_to_string(jwt))
+
                             local uid = jwt["uid"]
                             local sub = jwt["sub"]
 
                             if uid ~= nil then
                               handle:headers():add("X-USER-ID", tostring(uid))
-                              handle:logInfo("[JWT] Added header X-USER-ID = " .. tostring(uid))
+                              handle:logInfo("[JWT DEBUG] Added header X-USER-ID = " .. tostring(uid))
                             else
-                              handle:logWarn("[JWT] uid is nil")
+                              handle:logWarn("[JWT DEBUG] uid is nil in jwt_payload")
                             end
 
                             if sub ~= nil then
                               handle:headers():add("X-USER-EMAIL", tostring(sub))
-                              handle:logInfo("[JWT] Added header X-USER-EMAIL = " .. tostring(sub))
+                              handle:logInfo("[JWT DEBUG] Added header X-USER-EMAIL = " .. tostring(sub))
                             else
-                              handle:logWarn("[JWT] sub is nil")
+                              handle:logWarn("[JWT DEBUG] sub is nil in jwt_payload")
                             end
                           else
-                            handle:logWarn("[JWT] No jwt_payload found!")
+                            handle:logWarn("[JWT DEBUG] No jwt_payload found! JWT verification probably failed.")
+                            handle:logWarn("[JWT DEBUG] Possible reasons:")
+                            handle:logWarn("[JWT DEBUG] 1. Token expired")
+                            handle:logWarn("[JWT DEBUG] 2. Issuer mismatch (iss)")
+                            handle:logWarn("[JWT DEBUG] 3. Signature mismatch (public key/JWKS)")
+                            handle:logWarn("[JWT DEBUG] 4. JWKS endpoint unreachable")
+                            handle:logWarn("[JWT DEBUG] 5. Token format invalid")
                           end
                         end
 
